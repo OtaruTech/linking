@@ -6,6 +6,7 @@
 #include "types.h"
 #include "message.h"
 #include "messagehub.h"
+#include "stringutils.h"
 
 using namespace std;
 using namespace linking;
@@ -80,6 +81,16 @@ void test_message()
     LOG(INFO) << "base64Msg: " << base64Msg.toString() << endl;
 }
 
+void methodSum(Message& msg, Response& rsp)
+{
+    LOG(INFO) << "methodSum: " << msg.toString() << endl;
+    int a, b;
+    msg.getInt("a", &a);
+    msg.getInt("b", &b);
+    usleep(1000000);
+    rsp.setInt("result", (a+b));
+}
+
 void test_mqtt()
 {
     MessageHub* hub = &MessageHub::getInstance();
@@ -87,13 +98,48 @@ void test_mqtt()
     hub->initialize("Test", "127.0.0.1", 1883);
     hub->startLooper();
 
+    LOG(INFO) << "++START" << endl;
+    for(int i = 0; i < 3; i ++) {
+        string serviceName = StringUtils::stringFormat("service-%06d", i);
+        sp<MessageHub::LocalService> service = hub->createLocalService(serviceName.c_str());
+        service->registerMethod("sum", methodSum);
+        Result ret = hub->addService(service);
+        if(ret != Ok) {
+            LOG(ERROR) << "Add service " << i << " failed" << endl;
+        }
+        if(i % 100 == 0) {
+            LOG(INFO) << "++ " << i << " ++" << endl;
+            ::usleep(500000);
+        }
+    }
+    LOG(INFO) << "++END" << endl;
+#if 1
+    sp<MessageHub::RemoteService> service = hub->getService("service-000000");
+    if(service == NULL) {
+        LOG(ERROR) << "get service failed" << endl;
+    }
+    Message msg;
+    msg.setInt("a", 100);
+    msg.setInt("b", 200);
+    Response rsp;
+    service->callMethod("sum", msg, rsp);
+    LOG(INFO) << "Result: " << rsp.toString() << endl;
+#endif
+
     while(true) {
         usleep(1000000);
     }
 }
 
+void signalHandle(const char* data, size_t size)
+{
+    LOG(ERROR) << data;
+}
+
 int main() {
-    test_message();
+    google::InstallFailureSignalHandler();
+    google::InstallFailureWriter(&signalHandle);
+    //test_message();
     test_mqtt();
     return 0;
 }

@@ -7,12 +7,14 @@ set(PROJECT_LINK_LIBS
     libglog.so
     libmosquittopp.so
     pthread
+    libuuid.so
 )
 link_directories(
     ../build/external/glog
     ../build/lib
     ../build/external/mqtt/lib
     ../build/external/mqtt/lib/cpp
+    ../build/external/uuid/src
 )
 
 include_directories(
@@ -22,6 +24,7 @@ include_directories(
     ../external/json/include/
     ../external/mqtt/include
     ../external/mqtt/lib/cpp
+    ../external/uuid/src
 )
 
 set(SOURCES

@@ -7,7 +7,7 @@ using namespace std;
 
 Result ThreadManager::create(ThreadManager** ppInstance, const char* pName)
 {
-    Result          result         = Ok;
+    Result          result         = -EFailed;
     ThreadManager*  pLocalInstance = NULL;
 
     pLocalInstance = new ThreadManager();
@@ -92,10 +92,15 @@ Result ThreadManager::unregisterJobFamily(JobFunc jobFuncAddr, const char* pJobF
             m_threadWorker[slot].data.pq.clear();
             m_threadWorker[slot].data.pq.shrink_to_fit();
             ::memset(&m_registeredJobs[slot], 0x00, sizeof(RegisteredJob));
-            ::memset(&m_threadWorker[slot], 0x00, sizeof(ThreadConfig));
-            m_totalNumOfRegisteredJob --;
-            LOG(INFO) << "Feature name " << pJobFuncName <<
-                " remaining jobfamily " << m_totalNumOfRegisteredJob << endl;
+            //cause push back issue
+            //::memset(&m_threadWorker[slot], 0x00, sizeof(ThreadConfig));
+            m_threadWorker[slot].threadId = 0;
+            m_threadWorker[slot].workThreadFunc = NULL;
+            m_threadWorker[slot].pContext = NULL;
+            ::memset(&m_threadWorker[slot].ctrl, 0x00, sizeof(ThreadControl));
+            m_threadWorker[slot].isUsed = false;
+            //LOG(INFO) << "Feature name " << pJobFuncName <<
+            //    " remaining jobfamily " << m_totalNumOfRegisteredJob << endl;
         } else {
             LOG(ERROR) << "Failed to stop thread" << endl;
         }
@@ -114,9 +119,9 @@ Result ThreadManager::startThreads(uint32_t slot, JobHandle* phJob)
     pCfg = &m_threadWorker[slot];
 
     if((NULL == pRegisteredJob) || (pCfg->isUsed == true)) {
-        LOG(INFO) << "Slot " << slot <<
-            " is already occupied. totalNumOfRegisteredJob " <<
-            m_totalNumOfRegisteredJob << endl;
+        //LOG(INFO) << "Slot " << slot <<
+        //    " is already occupied. totalNumOfRegisteredJob " <<
+        //    m_totalNumOfRegisteredJob << endl;
         result = -EFailed;
     } else {
         pCfg->threadId                  = pRegisteredJob->uniqueCounter;
@@ -127,6 +132,7 @@ Result ThreadManager::startThreads(uint32_t slot, JobHandle* phJob)
         pCfg->ctrl.pQueueLock           = NativeMutex::create();
         pCfg->ctrl.pFlushOK             = NativeCondition::create();
         pCfg->ctrl.pFlushLock           = NativeMutex::create();
+        pCfg->ctrl.isAvailable          = true;
         pCfg->pContext                  = reinterpret_cast<void*>(this);
         pCfg->isUsed                    = true;
 
@@ -155,14 +161,14 @@ Result ThreadManager::startThreads(uint32_t slot, JobHandle* phJob)
                 result = -EFailed;
             }
         }
-        LOG(INFO) << "ThreadId " << pCfg->threadId << " workThreadFunc" <<
-            pCfg->workThreadFunc << " hWorkThread" << pCfg->hWorkThread <<
-            " ReadOk " << pCfg->ctrl.pReadOK << endl << "threadLock " <<
-            pCfg->ctrl.pThreadLock << " flushjobsumbit lock " <<
-            pCfg->ctrl.pFlushJobSubmitLock << " queuelock " <<
-            pCfg->ctrl.pQueueLock << " context " << pCfg->pContext <<
-            " isUsed " << pCfg->isUsed << ", slot " << slot <<
-            " NumOfRegisgteredJob " << m_totalNumOfRegisteredJob << endl;
+        //LOG(INFO) << "ThreadId " << pCfg->threadId << " workThreadFunc" <<
+        //    pCfg->workThreadFunc << " hWorkThread" << pCfg->hWorkThread <<
+        //    " ReadOk " << pCfg->ctrl.pReadOK << endl << "threadLock " <<
+        //    pCfg->ctrl.pThreadLock << " flushjobsumbit lock " <<
+        //    pCfg->ctrl.pFlushJobSubmitLock << " queuelock " <<
+        //    pCfg->ctrl.pQueueLock << " context " << pCfg->pContext <<
+        //    " isUsed " << pCfg->isUsed << ", slot " << slot <<
+        //    " NumOfRegisgteredJob " << m_totalNumOfRegisteredJob << endl;
     }
     return result;
 }
@@ -309,6 +315,7 @@ Result ThreadManager::processJobQueue(void* pCfg)
         pCtrl->pQueueLock->lock();
         if(true == pData->pq.empty()) {
             isQueued = false;
+            pCtrl->isAvailable = true;
         }
         pCtrl->pQueueLock->unlock();
     }
@@ -329,7 +336,7 @@ Result ThreadManager::flushJob(JobHandle hJob, bool forceFlush)
     ThreadControl* pCtrl  = getThreadControlByHandle(hJob);
 
     if(NULL == pCtrl) {
-        LOG(INFO) << "pCtrl is null" << endl;
+        //LOG(ERROR) << "pCtrl is null" << endl;
         result = -EFailed;
     } else {
         if(Initialized != getStatus(pCtrl)) {
@@ -411,9 +418,9 @@ Result ThreadManager::stopThreads(JobHandle hJob)
 
 Result ThreadManager::postJob(JobHandle hJob, void* pData, uint64_t requestId)
 {
-    RuntimeJob*    pRuntimeJob = NULL;
-    Result         result      = Ok;
-    ThreadControl* pCtrl       = NULL;
+    RuntimeJob*    pRuntimeJob    = NULL;
+    Result         result         = Ok;
+    ThreadControl* pCtrl          = NULL;
 
     pCtrl = getThreadControlByHandle(hJob);
     if(NULL == pCtrl) {
@@ -449,6 +456,9 @@ Result ThreadManager::postJob(JobHandle hJob, void* pData, uint64_t requestId)
                 result = -ENoMemory;
             }
         }
+    }
+    if(result == Ok) {
+        pCtrl->isAvailable = false;
     }
     return result;
 }
@@ -503,6 +513,25 @@ Result ThreadManager::getAllPostedJobs(JobHandle hJob, vector<void*>& rPostedJob
     return result;
 }
 
+bool ThreadManager::isJobAvailable(JobHandle hJob)
+{
+    Result          result = Ok;
+    ThreadControl*  pCtrl = NULL;
+    bool            available = false;
+
+    pCtrl = getThreadControlByHandle(hJob);
+
+    if(NULL == pCtrl) {
+        LOG(ERROR) << "Failed to get threadcontrol" << endl;
+        return false;
+    } else {
+        pCtrl->pQueueLock->lock();
+        available = pCtrl->isAvailable;
+        pCtrl->pQueueLock->unlock();
+    }
+    return available;
+}
+
 ThreadManager::ThreadManager()
 {
     m_totalNumOfRegisteredJob = 0;
@@ -550,7 +579,7 @@ Result ThreadManager::initialize(const char* pName)
             ::memset(&m_threadWorker[i].ctrl, 0x00, sizeof(ThreadControl));
             m_threadWorker[i].isUsed = false;
         }
-        LOG(INFO) << "Initialzed " << pName << endl;
+        //LOG(INFO) << "Initialzed " << pName << endl;
     }
 
     return result;

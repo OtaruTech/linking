@@ -19,8 +19,9 @@ typedef enum {
 
 class Message {
 public:
-    Message(MESSAGE_TYPE type);
+    Message(MESSAGE_TYPE type = MESSAGE_OBJECT);
     Message(MESSAGE_TYPE type, string& buffer);
+    Message(MESSAGE_TYPE type, const char* buffer);
     ~Message();
 
     void setName(const char* name);

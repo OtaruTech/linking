@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.9)
-project(example)
+project(daemon)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
@@ -30,15 +30,7 @@ link_directories(
 )
 
 set(SOURCES main.cpp)
-add_executable(example ${SOURCES})
-target_link_libraries(example ${PROJECT_LINK_LIBS})
 
-project(server)
-set(SOURCES server.cpp)
-add_executable(server ${SOURCES})
-target_link_libraries(server ${PROJECT_LINK_LIBS})
+add_executable(daemon ${SOURCES})
+target_link_libraries(daemon ${PROJECT_LINK_LIBS})
 
-project(client)
-set(SOURCES client.cpp)
-add_executable(client ${SOURCES})
-target_link_libraries(client ${PROJECT_LINK_LIBS})

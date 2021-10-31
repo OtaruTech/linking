@@ -12,8 +12,8 @@ typedef void* (*JobFunc)(void* pArg);
 
 static const JobHandle InvalidJobHandle = 0;
 static const uint32_t MaxNameLength = 255;
-static const uint32_t MaxRegisteredJobs = 50;
-static const uint32_t MaxNumThread = 50;
+static const uint32_t MaxRegisteredJobs = 100;
+static const uint32_t MaxNumThread = 100;
 
 typedef uint32_t CoreStatus;
 typedef uint32_t JobFlushStatus;
@@ -73,6 +73,7 @@ struct ThreadControl {
     CoreStatus                status;
     volatile bool             jobPending;
     volatile uint32_t         blockingStatus;
+    bool                      isAvailable;
 };
 
 struct ThreadData {
@@ -103,6 +104,7 @@ public:
     Result removeJob(JobHandle hJob, void* pData);
     Result getAllPostedJobs(JobHandle hJob, std::vector<void*>& rPostedJobs);
     Result flushJob(JobHandle hJob, bool forceFlush);
+    bool isJobAvailable(JobHandle hJob);
 private:
     ThreadManager();
     ~ThreadManager();

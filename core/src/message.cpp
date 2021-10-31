@@ -40,6 +40,23 @@ Message::Message(MESSAGE_TYPE type, string& buffer)
     m_lock = NativeMutex::create();
 }
 
+Message::Message(MESSAGE_TYPE type, const char* buffer)
+    : m_lock(NULL)
+    , m_name("")
+{
+    if(type == MESSAGE_OBJECT) {
+        m_root = json::object();
+        m_root = json::parse(buffer);
+    } else if(type == MESSAGE_ARRAY) {
+        m_root = json::array();
+        m_root = json::parse(buffer);
+    } else if(type == MESSAGE_BASE64) {
+        string decode = base64_decode(buffer);
+        m_root = json::parse(decode);
+    }
+    m_lock = NativeMutex::create();
+}
+
 Message::~Message()
 {
     if(m_lock != NULL) {

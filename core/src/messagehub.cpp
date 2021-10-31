@@ -128,7 +128,7 @@ void* MessageHub::MessageQueue::handleMessageFunc(void* data)
 
     string topic = threadData->topic;
     //LOG(INFO) << "+recv: " << topic << " -> " << (char*)threadData->buffer << endl;
-    Message msg(MESSAGE_OBJECT, (const char*)threadData->buffer);
+    Message msg(MESSAGE_BASE64, (const char*)threadData->buffer);
     //LOG(INFO) << "+recv: " << topic << " -> " << msg.toString() << endl;
     if(strncmp(topic.c_str(), "/SND", 4) == 0) {
         MessageHub::getInstance().handleMessage(msg);
@@ -138,7 +138,8 @@ void* MessageHub::MessageQueue::handleMessageFunc(void* data)
         LOG(ERROR) << "Invalid topic" << endl;
     }
 
-    ::free(threadData);
+    ::free(threadData->buffer);
+    delete threadData;
     threadData = NULL;
     return NULL;
 }
@@ -216,7 +217,7 @@ Result MessageHub::MessageQueue::sendMessage(const char* id, Message& msg)
         return ret;
     }
     string topic = StringUtils::stringFormat(TOPIC_SND_FMT, id, mid);
-    string message = msg.toString();
+    string message = msg.toBase64();
 
     return pub(topic.c_str(), message.c_str(), message.length());
 }
@@ -233,7 +234,7 @@ Result MessageHub::MessageQueue::sendMessage(const char* id, Message& msg,
         return ret;
     }
     string topic = StringUtils::stringFormat(TOPIC_SND_FMT, id, mid);
-    string message = msg.toString();
+    string message = msg.toBase64();
 
     m_rspLock.lock();
     //create controller
@@ -281,7 +282,7 @@ Result MessageHub::MessageQueue::rspOk(const char* id, int mid)
     msg.setInt("mid", mid);
     msg.setString("from", m_hub->m_clientId.c_str());
     msg.setString("to", id);
-    string message = msg.toString();
+    string message = msg.toBase64();
     return pub(topic.c_str(), message.c_str(), message.length());
 }
 
@@ -294,7 +295,7 @@ Result MessageHub::MessageQueue::rspOkWithMsg(const char* id, int mid, Response&
     msg.setString("from", m_hub->m_clientId.c_str());
     msg.setString("to", id);
     msg.setMessage("data", rsp);
-    string message = msg.toString();
+    string message = msg.toBase64();
     return pub(topic.c_str(), message.c_str(), message.length());
     return Ok;
 }
@@ -307,21 +308,21 @@ Result MessageHub::MessageQueue::rspFailed(const char* id, int mid)
     msg.setInt("mid", mid);
     msg.setString("from", m_hub->m_clientId.c_str());
     msg.setString("to", id);
-    string message = msg.toString();
+    string message = msg.toBase64();
     return pub(topic.c_str(), message.c_str(), message.length());
 }
 
 Result MessageHub::MessageQueue::sub(const char* topic)
 {
     AutoMutex __lock(m_lock);
-    LOG(INFO) << "subscribe: " << topic << endl;
+    //LOG(INFO) << "subscribe: " << topic << endl;
     return (subscribe(NULL, topic) == 0) ? Ok : -EFailed;
 }
 
 Result MessageHub::MessageQueue::unsub(const char* topic)
 {
     AutoMutex __lock(m_lock);
-    LOG(INFO) << "unsubscribe: " << topic << endl;
+    //LOG(INFO) << "unsubscribe: " << topic << endl;
     return (unsubscribe(NULL, topic) == 0) ? Ok : -EFailed;
 }
 
@@ -425,10 +426,9 @@ bool MessageHub::isConnected()
 void* MessageHub::processMethodCall(void* ptr)
 {
     const char* buf = static_cast<const char*>(ptr);
-    LOG(INFO) << "processMethodCall: " << buf << endl;
+    //LOG(INFO) << "processMethodCall: " << buf << endl;
     Message msg(MESSAGE_OBJECT, buf);
     MessageHub* hub = &MessageHub::getInstance();
-    LOG(INFO) << "processMethodCall: " << msg.toString() << endl;
 
     LocalServiceMap::iterator localServiceItem;
     MethodMap::iterator methodItem;
@@ -547,6 +547,7 @@ void MessageHub::handleMessage(Message& msg)
             if(remoteService == NULL) {
                 LOG(ERROR) << "Cannot find remote service " << serviceName << endl;
                 m_spMq->rspFailed(from.c_str(), mid);
+                break;;
             }
             rsp.setString("service", serviceName);
             rsp.setStringArray("methods", remoteService->m_methodVec);

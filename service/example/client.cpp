@@ -4,6 +4,7 @@
 #include "message.h"
 #include "messagehub.h"
 #include "stringutils.h"
+#include <stopwatch.h>
 
 using namespace std;
 using namespace linking;
@@ -21,6 +22,8 @@ ThreadManager* threadManager;
 
 static void* testJobFunc(void* ptr)
 {
+    StopWatch stopWatch("job");
+    uint32_t* crash;
     MessageHub* hub = &MessageHub::getInstance();
     int* count = static_cast<int*>(ptr);
 //    LOG(INFO) << "count: " << *count << endl;
@@ -29,13 +32,16 @@ static void* testJobFunc(void* ptr)
     msg.setInt("a", 100 * *count);
     msg.setInt("b", 200 * *count);
     Response rsp;
-    services[*count]->callMethod("sum", msg, rsp);
+    services[*count]->callMethod("sum", msg, rsp, 3000);
     //LOG(INFO) << "Result: " << rsp.toString() << endl;
     int result;
     rsp.getInt("result", &result);
     if(result != (100 * *count + 200 * *count)) {
-        LOG(ERROR) << "Result: " << rsp.toString() << endl;
+        //LOG(ERROR) << "Result: " << rsp.toString() << endl;
+        crash[100] = 100;
     }
+    int32_t elapsedMillis = ns2ms(stopWatch.elapsedTime());
+    LOG(INFO) << "ElapsedMillis: " << elapsedMillis << endl;
     return NULL;
 }
 
@@ -62,7 +68,7 @@ int main(int argc, char** argv)
 #endif
 
     while(true) {
-        usleep(1500000);
+        usleep(100000);
     for(int i = 0; i < TEST_MAX_COUNT; i ++) {
         counts[i] = i;
         threadManager->postJob(jobs[i], &counts[i], 0);

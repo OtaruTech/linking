@@ -17,12 +17,13 @@ void signalHandle(const char* data, size_t size)
 
 void methodSum(Message& msg, Response& rsp)
 {
-    LOG(INFO) << "methodSum: " << msg.toString() << endl;
+//    LOG(INFO) << "methodSum: " << msg.toString() << endl;
     int a, b;
     msg.getInt("a", &a);
     msg.getInt("b", &b);
-    usleep(1000000);
+    usleep(10000);
     rsp.setInt("result", (a+b));
+//    LOG(INFO) << "methodSum: done" << endl;
 }
 
 int main(int argc, char** argv)
